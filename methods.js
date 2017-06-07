@@ -10,6 +10,23 @@ var a_times = [];
 var a_dates = []; 
 var $; 
 
+function isDuplicate(item, array) {
+
+	var found = false;
+	for (var i = 0; i < array.length; i++) {
+
+		if (JSON.stringify(array[i]) == JSON.stringify(item)) {
+
+			found = true; 
+
+		}
+
+	}
+
+	return found; 
+
+}
+
 function getInfoFromHtml(html) {
 
 	$ = cheerio.load(html);
@@ -17,58 +34,74 @@ function getInfoFromHtml(html) {
 	var body = $('body').html();
 	knwlInstance.init(body);
 	var emails = knwlInstance.get('emails');
+	for (var i = 0; i < emails.length; i++) {
 
-	a_emails.push(emails);
-	knwlInstance.init(body);
-	var phones = knwlInstance.get('phones');
+		if (emails[i].sameAs != null) {
 
-	a_phones.push(phones);
-	knwlInstance.init(body);
-	var places = knwlInstance.get('places');
+			a_emails.push({'address': emails[i].address, 'preview': emails[i].preview, 'sameAs': emails[i].sameAs});
 
-	a_places.push(places);
-	knwlInstance.init(body);
-	var links = knwlInstance.get('links');
+		} else {
+
+			a_emails.push({'address': emails[i].address, 'preview': emails[i].preview});
+
+		}
+
+	}
+
+	$('a').each(function(){
+
+		
+		knwlInstance.init($(this).text()+" "+$(this).attr("href"));
+		var links = knwlInstance.get('links');
+		if (links.length > 0) {
+
+			if (!isDuplicate(links, a_links)) {
+				a_links.push(links);
+				//todo: open twitter, facebook and linkedin links and get info from them 
+				if (new RegExp("^https?:\/\/(www\.)?(facebook|twitter|linkedin).+$")) {
+
+
+
+				}
+			}
+
+		}
+
+	});
+
 	
-	a_links.push(links);
-	knwlInstance.init(body);
-	var times = knwlInstance.get('times');
-	
-	a_times.push(times);
-	knwlInstance.init(body);
-	var dates = knwlInstance.get('dates');
-	
-	a_dates.push(dates);
-	
-	
+
+
 
 }
-function getContactUsLink($, website) {
+function getLink($, website, regex) {
 
 	var body = $("body").html();
 	var a = $("a");
 	for (var i = 0; i < a.length; i++) {
 
-		if (new RegExp(".*contact.*").test(a[i].attribs.href.toLowerCase())) {
+		if (a[i].attribs.href != undefined) {
+			if (new RegExp(regex).test(a[i].attribs.href.toLowerCase())) {
 
-			var contact = a[i].attribs.href;
+				var contact = a[i].attribs.href;
 
-			if (new RegExp("^https?://.+$").test(contact)) {
+				if (new RegExp("^https?://.+$").test(contact)) {
 
-				return contact;
+					return contact;
 
-			} else {
+				} else {
 
-				if (!new RegExp("^\\/.+$").test(contact)) {
+					if (!new RegExp("^\\/.+$").test(contact)) {
 
-					contact = "/"+contact; 
+						contact = "/"+contact; 
+
+					}
+
+					return website + contact; 
 
 				}
 
-				return website + contact; 
-
 			}
-
 		}
 
 	}
@@ -142,6 +175,8 @@ module.exports = {
 
 	scrapeWebsite: function(url) {
 
+
+
 		request(url, function(error, response, html) {
 
 			if (error) {
@@ -154,7 +189,7 @@ module.exports = {
 			getInfoFromHtml(html);
 
 			//try contact us page
-			var contactUs = getContactUsLink($,url);
+			var contactUs = getLink($,url,".*contact.*");
 			if (contactUs != null) {
 
 				request(contactUs, function(error, response, html) {
@@ -170,6 +205,24 @@ module.exports = {
 				});
 
 			}
+			//try team page
+			var team = getLink($,url,".*team.*");
+			if (team != null) {
+
+				request(team, function(error, response, html) {
+
+					if (error) {
+
+						throw error; 
+
+					}
+
+					getInfoFromHtml(html);
+
+				});
+
+			}
+
 
 		});
 
