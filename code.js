@@ -22,16 +22,17 @@ try {
 
 		for (var i = 0; i < links.length; i++) {
 			if (new RegExp("^https?:\\/\\/.*(facebook|twitter|linkedin).+$").test(links[i])) {
-				request(links[i], function(error, res, html) {
+				if (new RegExp("^https?:\\/\\/.*twitter.+$").test(links[i])) {
+					request(links[i], function(error, response, html) {
 
-					console.log(links[i]);
-					$ = cheerio.load(html);
-					if (new RegExp("^https?:\\/\\/.*twitter.+$").test(links[i])) {
+						$ = cheerio.load(html);
+						
 						var name = $("a.ProfileHeaderCard-nameLink").text();
-						console.log(currentLink+ ": "+name);
-					}
+						var url = "twitter.com"+$("a.ProfileHeaderCard-nameLink").attr("href");
+						console.log(url+": "+name);
 
-				});
+					});
+				}
 
 			}
 		}
