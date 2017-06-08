@@ -29,7 +29,8 @@ try {
 						
 						var name = $("a.ProfileHeaderCard-nameLink").text();
 						var url = "twitter.com"+$("a.ProfileHeaderCard-nameLink").attr("href");
-						console.log(url+": "+name);
+						var profilePicture = $("img.ProfileAvatar-image").attr("src");
+						console.log(url+" - "+name+" - "+profilePicture);
 
 					});
 				}
