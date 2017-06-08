@@ -16,7 +16,7 @@ try {
 
 	var request = require('request');
 
-	//todo: individually extract data from twitter, facebook and linkedin. (currently not working)
+	//todo: individually extract data from twitter, facebook and linkedin. 
 	var links = methods.getLinks(); 
 	setTimeout(function() {
 
