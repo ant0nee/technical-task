@@ -2,6 +2,7 @@ const request = require('request');
 const Knwl = require("knwl.js");
 const knwlInstance = new Knwl('english');
 const cheerio = require('cheerio');
+
 var a_emails = []; 
 var a_phones = [];
 var a_places = [];
@@ -15,7 +16,7 @@ function isDuplicate(item, array) {
 	var found = false;
 	for (var i = 0; i < array.length; i++) {
 
-		if (JSON.stringify(array[i]) == JSON.stringify(item)) {
+		if (array[i] == item) {
 
 			found = true; 
 
@@ -47,31 +48,22 @@ function getInfoFromHtml(html) {
 		}
 
 	}
-
+	
 	$('a').each(function(){
-
-		
+	
 		knwlInstance.init($(this).text()+" "+$(this).attr("href"));
 		var links = knwlInstance.get('links');
 		if (links.length > 0) {
 
-			if (!isDuplicate(links, a_links)) {
-				a_links.push(links);
-				//todo: open twitter, facebook and linkedin links and get info from them 
-				if (new RegExp("^https?:\/\/(www\.)?(facebook|twitter|linkedin).+$")) {
-
-
-
+			for (var i = 0; i < links.length; i++) {
+				if (!isDuplicate(links[0].link, a_links)) {
+					a_links.push(links[0].link);
 				}
 			}
 
 		}
-
-	});
-
 	
-
-
+	});
 
 }
 function getLink($, website, regex) {
@@ -225,6 +217,14 @@ module.exports = {
 
 
 		});
+
+	},
+	checkLinks: function() {
+
+		//todo: open twitter, facebook and linkedin links and get info from them 
+		
+
+		
 
 	}
 }
