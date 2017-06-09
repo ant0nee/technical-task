@@ -1,60 +1,176 @@
-const methods = require('./methods.js');
-const express = require('express');
-const app = express();
-const cheerio = require('cheerio');
-const Knwl = require("knwl.js");
-const knwlInstance = new Knwl('english');
+//variables
+var strEmail; 
+var strWebsiteFromEmail; 
+//dependencies 
+const REQUEST = require('request');
+const CHEERIO = require('cheerio');
+const KNWL = require('knwl.js');
+const KNWLI = new KNWL('english');
+const ASYNC = require('async');
+//constants
+//todo: add google+
+const SOCIAL_REGEX = new RegExp("^.*(facebook|twitter|linkedin).*$");
 
 try {
-	
-	//get email address from arguments
-	var emailAddress = methods.getEmail(process.argv[2]);
-	//get information from email.
-	var website = methods.getWebsite(emailAddress);
-	//get info from website and contact page
-	methods.scrapeWebsite(website); 
+	//get email from args
+	if (!process.argv[2]) {
+		throw "Email argument not given. \nUsage: node code <email-address>";
+	}
 
-	var request = require('request');
+	strEmail = process.argv[2]; 
 
-	//todo: individually extract data from twitter, facebook and linkedin. 
-	var links = methods.getLinks(); 
-	setTimeout(function() {
+	if (!new RegExp("^.+@.+\\..+$").test(strEmail)) {
+		throw "Argument \""+strEmail+"\" is not an email. \nUsage: node code <email-address>";
+	}
 
-		for (var i = 0; i < links.length; i++) {
-			if (new RegExp("^https?:\\/\\/.*(facebook|twitter|linkedin).+$").test(links[i])) {
-				if (new RegExp("^https?:\\/\\/.*twitter.+$").test(links[i])) {
-					request(links[i], function(error, response, html) {
+	//get website linked to email 
+	strWebsiteFromEmail = "http://www."+strEmail.replace(/^.+@/,"");
 
-						$ = cheerio.load(html);
-						
-						var name = $("a.ProfileHeaderCard-nameLink").text();
-						var url = "twitter.com"+$("a.ProfileHeaderCard-nameLink").attr("href");
-						var profilePicture = $("img.ProfileAvatar-image").attr("src");
-						console.log(url+" - "+name+" - "+profilePicture);
+	//get data from website
 
-					});
+	fnGetHtml(strWebsiteFromEmail, function(strHtml){
+
+		fnScrape();
+		//get links on website
+		var $ = CHEERIO.load(strHtml);
+		var rgLinkList = [];
+		var rgSocialList = []; 
+		var rgAsync = []; 
+		$('a').each(function(){
+
+			var strHref = $(this).attr("href");
+			var strFullLink = fnGetFullLink(strWebsiteFromEmail, strHref);
+			//find contact us link and team/about us and social media links and add them to array 
+			if (new RegExp("^.*(contact|about|team).*$").test(strHref) || SOCIAL_REGEX.test(strHref)) {
+				
+				//if not already in array
+				if (!fnInArray(strFullLink, rgLinkList)) {
+					//if not a social link
+					if (!SOCIAL_REGEX.test(strFullLink)) {
+						//put all relevent (social) links into array from non social urls 
+						rgAsync.push(function(fnCallback) {
+							fnGetHtml(strFullLink, function(strHtml){
+
+								var $ = CHEERIO.load(strHtml);
+								var rgList = []; 
+								$('a').each(function(){
+
+									var strHref = $(this).attr("href");
+									if (SOCIAL_REGEX.test(strHref)) {
+										if (!fnInArray(strHref, rgList)) {
+											rgList.push(strHref);
+										}
+									}
+
+								}); 
+
+								fnCallback(null, rgList, strHtml);
+
+							}); 
+						}); 
+						rgLinkList.push(strFullLink);
+
+					} else {
+
+						rgSocialList.push(strFullLink);
+
+					}
+
+					
 				}
 
 			}
-		}
-	},5000);
 
-	/*var getEmails = function() {
 
-		console.log("\n");
-		console.log(methods.getEmails());
-		//console.log(methods.getPhones());
-		//console.log(methods.getPlaces());
-		console.log(methods.getLinks());
-		//console.log(methods.getTimes());
-		//console.log(methods.getDates());
+		});
 
-	}
-	setInterval(function() {getEmails()},1000);*/
+		//wait until links are opened
+		ASYNC.parallel(rgAsync, function(error, rgResults, rgHtml){
 
-} catch (error) {
+			for (var iHtml in rgHtml) {
 
-	console.log(error);
+				fnScrape(rgHtml[iHtml]);
+
+			}
+			//add them to the rgVisitNext array 
+			for (var iResult in rgResults) {
+				for (var iLink in rgResults[iResult]) {
+					if (!fnInArray(rgResults[iResult][iLink], rgLinkList)) {
+
+						rgSocialList.push(rgResults[iResult][iLink]);
+
+					}
+				}
+			}
+
+			//todo: get info from social networks
+
+		}); 
+
+
+	});
+
+	
+} catch (e) {
+
+	console.log(e);
 
 }
 
+//functions
+
+function fnScrape(strHtml) {
+
+	console.log(strHtml);
+
+}
+
+function fnGetFullLink(strDomain, strLink) {
+	//generate full url from a partial link
+	if (new RegExp("^https?:\\/\\/.+$").test(strLink)) {
+
+		strUrl = strLink; 
+
+	} else if (new RegExp("^\\/.*$").test(strLink)) {
+
+		strUrl = strDomain+strLink; 
+
+	} else {
+
+		strUrl = strDomain+"/"+strLink;
+
+	}
+	return strUrl; 
+
+}
+
+function fnInArray(strItemToFind, rgArray) {
+
+	var bFound = false; 
+	for (var iItem in rgArray) {
+		if (strItemToFind == rgArray[iItem]) {
+
+			bFound = true; 
+
+		}
+
+	}
+	return bFound; 
+
+}
+
+function fnGetHtml(strUrl, fnCallback) {
+	//get html from url 
+	REQUEST(strUrl, function(strError, response, strHtml) {
+
+		if (strError) {
+
+			throw strError; 
+
+		}
+
+		fnCallback(strHtml);
+
+	});
+
+}
