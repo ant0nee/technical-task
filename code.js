@@ -8,8 +8,7 @@ const KNWL = require('knwl.js');
 const KNWLI = new KNWL('english');
 const ASYNC = require('async');
 //constants
-//todo: add google+
-const SOCIAL_REGEX = new RegExp("^.*(facebook|twitter|linkedin).*$");
+const SOCIAL_REGEX = new RegExp("^.*(facebook|twitter|linkedin|plus\.google).*$");
 
 try {
 	//get email from args
@@ -30,7 +29,7 @@ try {
 
 	fnGetHtml(strWebsiteFromEmail, function(strHtml){
 
-		fnScrape();
+		fnScrape(strHtml);
 		//get links on website
 		var $ = CHEERIO.load(strHtml);
 		var rgLinkList = [];
@@ -64,7 +63,7 @@ try {
 
 								}); 
 
-								fnCallback(null, rgList, strHtml);
+								fnCallback(null, [rgList, strHtml]);
 
 							}); 
 						}); 
@@ -85,25 +84,23 @@ try {
 		});
 
 		//wait until links are opened
-		ASYNC.parallel(rgAsync, function(error, rgResults, rgHtml){
+		ASYNC.parallel(rgAsync, function(error, rgResults){
 
-			for (var iHtml in rgHtml) {
-
-				fnScrape(rgHtml[iHtml]);
-
-			}
 			//add them to the rgVisitNext array 
 			for (var iResult in rgResults) {
-				for (var iLink in rgResults[iResult]) {
-					if (!fnInArray(rgResults[iResult][iLink], rgLinkList)) {
+				
+				fnScrape(rgResults[iResult][1]);
 
-						rgSocialList.push(rgResults[iResult][iLink]);
+				for (var iLink in rgResults[iResult][0]) {
+					if (!fnInArray(rgResults[iResult][0][iLink], rgSocialList)) {
+
+						rgSocialList.push(rgResults[iResult][0][iLink]);
 
 					}
 				}
 			}
 
-			//todo: get info from social networks
+			fnScrapeSocialMedia(rgSocialList);
 
 		}); 
 
@@ -121,7 +118,15 @@ try {
 
 function fnScrape(strHtml) {
 
-	console.log(strHtml);
+	//todo: implement 
+	console.log(strHtml.length);
+
+}
+
+function fnScrapeSocialMedia(rgUrls) {
+
+	//todo: implement 
+	console.log(rgUrls);
 
 }
 
