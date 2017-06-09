@@ -1,6 +1,7 @@
 //variables
 var strEmail; 
 var strWebsiteFromEmail; 
+var rgFinalResults = []; 
 //dependencies 
 const REQUEST = require('request');
 const CHEERIO = require('cheerio');
@@ -32,8 +33,6 @@ try {
 		fnScrape(strHtml);
 		//get links on website
 		var $ = CHEERIO.load(strHtml);
-		var rgLinkList = [];
-		var rgSocialList = []; 
 		var rgAsync = []; 
 		$('a').each(function(){
 
@@ -42,65 +41,126 @@ try {
 			//find contact us link and team/about us and social media links and add them to array 
 			if (new RegExp("^.*(contact|about|team).*$").test(strHref) || SOCIAL_REGEX.test(strHref)) {
 				
-				//if not already in array
-				if (!fnInArray(strFullLink, rgLinkList)) {
-					//if not a social link
-					if (!SOCIAL_REGEX.test(strFullLink)) {
-						//put all relevent (social) links into array from non social urls 
-						rgAsync.push(function(fnCallback) {
-							fnGetHtml(strFullLink, function(strHtml){
+		
+				//if not a social link
+				if (!SOCIAL_REGEX.test(strFullLink)) {
+					//put all relevent (social) links into array from non social urls 
+					rgAsync.push(function(fnCallback) {
+						fnGetHtml(strFullLink, function(strHtml){
 
-								var $ = CHEERIO.load(strHtml);
-								var rgList = []; 
-								$('a').each(function(){
+							var $ = CHEERIO.load(strHtml);
+							var rgList = []; 
+							$('a').each(function(){
 
-									var strHref = $(this).attr("href");
-									if (SOCIAL_REGEX.test(strHref)) {
-										if (!fnInArray(strHref, rgList)) {
-											rgList.push(strHref);
-										}
-									}
-
-								}); 
-
-								fnCallback(null, [rgList, strHtml]);
+								var strHref = $(this).attr("href");
+								if (SOCIAL_REGEX.test(strHref)) {
+									
+									rgList.push(strHref);
+									
+								}
 
 							}); 
+
+							fnCallback(null, [rgList, strHtml]);
+
 						}); 
-						rgLinkList.push(strFullLink);
+					}); 
 
-					} else {
-
-						rgSocialList.push(strFullLink);
-
-					}
-
-					
-				}
+				} 
+							
 
 			}
 
 
 		});
 
+
 		//wait until links are opened
 		ASYNC.parallel(rgAsync, function(error, rgResults){
+
+			var rgAsyncHtml = [];
+			var rgDone = [];
 
 			//add them to the rgVisitNext array 
 			for (var iResult in rgResults) {
 				
+				//todo: implement scrape function
 				fnScrape(rgResults[iResult][1]);
 
 				for (var iLink in rgResults[iResult][0]) {
-					if (!fnInArray(rgResults[iResult][0][iLink], rgSocialList)) {
 
-						rgSocialList.push(rgResults[iResult][0][iLink]);
+					if (fnValidUrl(rgResults[iResult][0][iLink])) {
+
+						if (!fnInArray(rgResults[iResult][0][iLink],rgDone)) {
+							rgDone.push(rgResults[iResult][0][iLink]);
+							(function(strLink) {
+								rgAsyncHtml.push(function(fnCallback) {
+
+									(function(strLink) {fnGetHtml(strLink, function(strHtml) {
+
+										fnCallback(null, [strLink,strHtml]);
+
+									})})(strLink);
+									
+								});
+							})(rgResults[iResult][0][iLink]);
+						}
 
 					}
+
 				}
 			}
 
-			fnScrapeSocialMedia(rgSocialList);
+			//populate output
+			ASYNC.parallel(rgAsyncHtml, function(error, rgHtml) {
+
+				for (var iHtml in rgHtml) {
+					if (new RegExp("^.*twitter.*$").test(rgHtml[iHtml][0])) {
+						var $ = CHEERIO.load(rgHtml[iHtml][1]);
+						var name = $("a.ProfileHeaderCard-nameLink").text().toUpperCase();
+						var iFound = fnFindNameInFinalResults(name); 
+						var location = $('div.ProfileHeaderCard div.ProfileHeaderCard-location').text().replace(/[\s\n]+/g,"");
+						var url = $('div.ProfileHeaderCard div.ProfileHeaderCard-url').text().replace(/[\s\n]+/g,"");
+						var shortUrl = $('div.ProfileHeaderCard div.ProfileHeaderCard-url').children().last().children().last().attr("href");
+						var joinDate = $('div.ProfileHeaderCard ProfileHeaderCard-joinDate').text().replace(/[\s\n]+/g,"");
+						var birthDay = $('div.ProfileHeaderCard ProfileHeaderCard-birthdate').text().replace(/[\s\n]+/g,"");
+						var data = {
+							location: location,
+							url: {text: url, short: shortUrl},
+							joinDate: joinDate,
+							birthDay: birthDay
+						};
+						if (iFound != -1) {
+							rgFinalResults[ifound].links.push(rgHtml[iHtml][0]);
+							rgFinalResults[iFound].data.push(data);
+						} else {
+							rgFinalResults.push(JSON.parse("{\"name\":\""+name+"\", \"from\":\"twitter\", \"links\":[\""+rgHtml[iHtml][0]+"\"], \"twitterData\":null}"));
+							rgFinalResults[rgFinalResults.length-1].twitterData = data;
+						}
+					} else if (new RegExp("^.*linkedin.*$").test(rgHtml[iHtml][0])) {
+
+						var iFound = fnFindFrom("linkedin");
+						if (iFound != -1) {
+
+							 rgFinalResults[iFound].links.push(rgHtml[iHtml][0]);
+
+						} else {
+
+							rgFinalResults.push(JSON.parse("{\"from\":\"linkedin\",\"links\":[\""+rgHtml[iHtml][0]+"\"]}"));
+							
+						}
+						
+					} else {
+
+						console.log(rgHtml[iHtml][0]);
+
+					}
+
+				}
+
+				console.log(rgFinalResults);
+
+			});
 
 		}); 
 
@@ -119,19 +179,53 @@ try {
 function fnScrape(strHtml) {
 
 	//todo: implement 
-	console.log(strHtml.length);
 
 }
 
-function fnScrapeSocialMedia(rgUrls) {
+function fnFindNameInFinalResults(strName) {
 
-	//todo: implement 
-	console.log(rgUrls);
+	var iFound = -1; 
+	for (var iItem in rgFinalResults) {
+
+		if (rgFinalResults[iItem].name != null) {
+
+			if (new RegExp("^.*"+strName+".*$").test(rgFinalResults[iItem].name) 
+				|| new RegExp("^.*"+rgFinalResults[iItem].name+".*$").test(strName)) {
+
+				iFound = iItem; 
+
+			}
+
+		}
+
+	}
+	return iFound; 
+
+}
+
+function fnFindFrom(strName) {
+
+	var iFound = -1; 
+	for (var iItem in rgFinalResults) {
+
+		if (rgFinalResults[iItem].from != null) {
+
+			if (rgFinalResults[iItem].from == strName) {
+
+				iFound = iItem; 
+
+			}
+
+		}
+
+	}
+	return iFound; 
 
 }
 
 function fnGetFullLink(strDomain, strLink) {
 	//generate full url from a partial link
+
 	if (new RegExp("^https?:\\/\\/.+$").test(strLink)) {
 
 		strUrl = strLink; 
@@ -145,26 +239,33 @@ function fnGetFullLink(strDomain, strLink) {
 		strUrl = strDomain+"/"+strLink;
 
 	}
+
 	return strUrl; 
 
 }
 
-function fnInArray(strItemToFind, rgArray) {
+function fnInArray(strData, rgArray) {
 
 	var bFound = false; 
-	for (var iItem in rgArray) {
-		if (strItemToFind == rgArray[iItem]) {
+	for (var iData in rgArray) {
 
+		if (strData == rgArray[iData]) {
 			bFound = true; 
-
 		}
 
 	}
-	return bFound; 
+	return bFound;
+
+}
+
+function fnValidUrl(strUrl) {
+
+	return new RegExp("^https?\:\\/\\/.+$").test(strUrl);
 
 }
 
 function fnGetHtml(strUrl, fnCallback) {
+
 	//get html from url 
 	REQUEST(strUrl, function(strError, response, strHtml) {
 
