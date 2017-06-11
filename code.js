@@ -41,7 +41,6 @@ try {
 			//find contact us link and team/about us and social media links and add them to array 
 			if (new RegExp("^.*(contact|about|team).*$").test(strHref) || SOCIAL_REGEX.test(strHref)) {
 				
-		
 				//if not a social link
 				if (!SOCIAL_REGEX.test(strFullLink)) {
 					//put all relevent (social) links into array from non social urls 
@@ -73,7 +72,6 @@ try {
 
 
 		});
-
 
 		//wait until links are opened
 		ASYNC.parallel(rgAsync, function(error, rgResults){
@@ -115,28 +113,43 @@ try {
 			ASYNC.parallel(rgAsyncHtml, function(error, rgHtml) {
 
 				for (var iHtml in rgHtml) {
+					var $ = CHEERIO.load(rgHtml[iHtml][1]);
 					if (new RegExp("^.*twitter.*$").test(rgHtml[iHtml][0])) {
-						var $ = CHEERIO.load(rgHtml[iHtml][1]);
-						var name = $("a.ProfileHeaderCard-nameLink").text().toUpperCase();
-						var iFound = fnFindNameInFinalResults(name); 
-						var location = $('div.ProfileHeaderCard div.ProfileHeaderCard-location').text().replace(/[\s\n]+/g,"");
-						var url = $('div.ProfileHeaderCard div.ProfileHeaderCard-url').text().replace(/[\s\n]+/g,"");
-						var shortUrl = $('div.ProfileHeaderCard div.ProfileHeaderCard-url').children().last().children().last().attr("href");
-						var joinDate = $('div.ProfileHeaderCard ProfileHeaderCard-joinDate').text().replace(/[\s\n]+/g,"");
-						var birthDay = $('div.ProfileHeaderCard ProfileHeaderCard-birthdate').text().replace(/[\s\n]+/g,"");
-						var data = {
-							location: location,
-							url: {text: url, short: shortUrl},
-							joinDate: joinDate,
-							birthDay: birthDay
+						var strName = $("a.ProfileHeaderCard-nameLink").text().toUpperCase();
+						var iFound = fnFindNameInFinalResults(strName); 
+						var strPicture = $('img.ProfileAvatar-image').attr("src");
+						var strLocation = $('div.ProfileHeaderCard div.ProfileHeaderCard-location').text().replace(/[\s\n]+/g,"");
+						var strUrl = $('div.ProfileHeaderCard div.ProfileHeaderCard-url').text().replace(/[\s\n]+/g,"");
+						var strShortUrl = $('div.ProfileHeaderCard div.ProfileHeaderCard-url').children().last().children().last().attr("href");
+						var strJoinDate = $('div.ProfileHeaderCard ProfileHeaderCard-joinDate').text().replace(/[\s\n]+/g,"");
+						var strBirthDay = $('div.ProfileHeaderCard ProfileHeaderCard-birthdate').text().replace(/[\s\n]+/g,"");
+						var rgData = {
+							location: strLocation,
+							profilePicture: strPicture, 
+							url: {text: strUrl, short: strShortUrl},
+							joinDate: strJoinDate,
+							birthDay: strBirthDay
 						};
 						if (iFound != -1) {
 							rgFinalResults[ifound].links.push(rgHtml[iHtml][0]);
-							rgFinalResults[iFound].data.push(data);
+							rgFinalResults[iFound].data.push(rgData);
 						} else {
-							rgFinalResults.push(JSON.parse("{\"name\":\""+name+"\", \"from\":\"twitter\", \"links\":[\""+rgHtml[iHtml][0]+"\"], \"twitterData\":null}"));
-							rgFinalResults[rgFinalResults.length-1].twitterData = data;
+							rgFinalResults.push(JSON.parse("{\"name\":\""+strName+"\", \"from\":\"twitter\", \"links\":[\""+rgHtml[iHtml][0]+"\"], \"twitterData\":null}"));
+							rgFinalResults[rgFinalResults.length-1].twitterData = rgData;
 						}
+					} else if (new RegExp("^.*plus\.google.*$").test(rgHtml[iHtml][0])) {
+
+						var iFound = fnFindFrom("google+");
+						if (iFound != -1) {
+
+							 rgFinalResults[iFound].links.push(rgHtml[iHtml][0]);
+
+						} else {
+
+							rgFinalResults.push(JSON.parse("{\"from\":\"google+\",\"links\":[\""+rgHtml[iHtml][0]+"\"]}"));
+							
+						}
+
 					} else if (new RegExp("^.*linkedin.*$").test(rgHtml[iHtml][0])) {
 
 						var iFound = fnFindFrom("linkedin");
@@ -150,15 +163,24 @@ try {
 							
 						}
 						
-					} else {
+					} else if (new RegExp("^.*facebook.*$").test(rgHtml[iHtml][0])) {
 
-						console.log(rgHtml[iHtml][0]);
+						var iFound = fnFindFrom("facebook");
+						if (iFound != -1) {
 
-					}
+							 rgFinalResults[iFound].links.push(rgHtml[iHtml][0]);
+
+						} else {
+
+							rgFinalResults.push(JSON.parse("{\"from\":\"facebook\",\"links\":[\""+rgHtml[iHtml][0]+"\"]}"));
+							
+						}
+
+					} 
 
 				}
 
-				console.log(rgFinalResults);
+				//console.log(rgFinalResults);
 
 			});
 
@@ -179,6 +201,8 @@ try {
 function fnScrape(strHtml) {
 
 	//todo: implement 
+	
+
 
 }
 
