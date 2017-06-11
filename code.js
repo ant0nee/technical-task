@@ -2,11 +2,12 @@
 var strEmail; 
 var strWebsiteFromEmail; 
 var rgFinalResults = []; 
+var rgScrapedEmails = []; 
 //dependencies 
 const REQUEST = require('request');
 const CHEERIO = require('cheerio');
 const KNWL = require('knwl.js');
-const KNWLI = new KNWL('english');
+const KNWLI = new KNWL();
 const ASYNC = require('async');
 //constants
 const SOCIAL_REGEX = new RegExp("^.*(facebook|twitter|linkedin|plus\.google).*$");
@@ -180,7 +181,35 @@ try {
 
 				}
 
-				console.log(rgFinalResults);
+				for (var iItem in rgFinalResults) {
+
+					for (var iEmail in rgScrapedEmails) {
+						if (rgFinalResults[iItem].name != null) {
+							if (fnSimilar(rgFinalResults[iItem].name, rgScrapedEmails[iEmail].replace(/@.+$/,""))) {
+
+								rgFinalResults[iItem].email = rgScrapedEmails[iEmail];
+								rgScrapedEmails[iEmail] = null; 
+
+							} 
+						}
+					}
+
+				}
+
+				for (var iEmail in rgScrapedEmails) {
+
+					if (rgScrapedEmails[iEmail] != null) {
+
+						if (rgFinalResults.otherEmails == null || rgFinalResults.otherEmails == undefined) {
+							rgFinalResults.otherEmails = []; 
+						}
+
+						rgFinalResults.otherEmails.push(rgScrapedEmails[iEmail]); 
+					}
+
+				}
+				
+				console.log(JSON.stringify(rgFinalResults, null, 4));
 
 			});
 
@@ -201,8 +230,50 @@ try {
 function fnScrape(strHtml) {
 
 	//todo: implement 
-	
+	KNWLI.init(strHtml);
+	var rgEmails = KNWLI.get('emails'); 
+	for (var iEmail in rgEmails) {
 
+		if (!fnInArray(rgEmails[iEmail].address, rgScrapedEmails)) {
+
+			rgScrapedEmails.push(rgEmails[iEmail].address);
+
+		}
+
+	}
+
+}
+
+function fnSimilar(str1, str2) {
+
+	var confidence = 0; 
+	var rg1 = str1.split(" ");
+	var rg2 = str2.split(" ");
+	for (var i = 0; i < rg1.length; i++) {
+
+		if (rg1[i] == rg2[0]) {
+
+			confidence+=4; 
+
+		}
+
+		for (var i2 = 1; i2 < rg2.length; i2++) {
+
+			if (rg1[i] == rg2[i2]) {
+
+				confidence+=2; 
+
+			} else if (new RegExp(".*"+rg1[i]+".*").test(rg2[i2])) {
+
+				confidence++; 
+
+			}
+
+		}
+
+	}
+
+	return confidence >= 3; 
 
 }
 
@@ -213,8 +284,7 @@ function fnFindNameInFinalResults(strName) {
 
 		if (rgFinalResults[iItem].name != null) {
 
-			if (new RegExp("^.*"+strName+".*$").test(rgFinalResults[iItem].name) 
-				|| new RegExp("^.*"+rgFinalResults[iItem].name+".*$").test(strName)) {
+			if (fnSimilar(rgFinalResults[iItem].name, strName)) {
 
 				iFound = iItem; 
 
