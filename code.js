@@ -180,7 +180,7 @@ try {
 
 				}
 
-				//console.log(rgFinalResults);
+				console.log(rgFinalResults);
 
 			});
 
